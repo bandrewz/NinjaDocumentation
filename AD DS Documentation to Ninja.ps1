@@ -8,7 +8,7 @@ $NinjaOneClientSecret = 'Your-Ninja-ClientSecret'
 ### Set Company Name and Doc Template Name
 $OrgID = $env:NINJA_ORGANIZATION_ID
 $NinjaDocTemplateName = "Sec - Active Directory"
-	
+    
 try {
     $moduleName = "NinjaOneDocs"
     if (-not (Get-Module -ListAvailable -Name $moduleName)) {
@@ -224,6 +224,20 @@ $ADDSTemplate = [PSCustomObject]@{
             }
         },
         [PSCustomObject]@{
+            fieldLabel                = 'Computer Count'
+            fieldName                 = 'computerCount'
+            fieldType                 = 'WYSIWYG'
+            fieldTechnicianPermission = 'READ_ONLY'
+            fieldScriptPermission     = 'NONE'
+            fieldApiPermission        = 'READ_WRITE'
+            fieldContent              = @{
+                required         = $False
+                advancedSettings = @{
+                    expandLargeValueOnRender = $False
+                }
+            }
+        },
+        [PSCustomObject]@{
             fieldLabel                = 'Domain Admins'
             fieldName                 = 'domainAdmins'
             fieldType                 = 'WYSIWYG'
@@ -248,164 +262,164 @@ $ADDSDocs = Invoke-NinjaOneRequest -Method GET -Path 'organization/documents' -Q
   
 Function Get-RegistryValue
 {
-	# Gets the specified registry value or $Null if it is missing
-	[CmdletBinding()]
-	Param
-	(
-		[String] $path, 
-		[String] $name, 
-		[String] $ComputerName
-	)
+    # Gets the specified registry value or $Null if it is missing
+    [CmdletBinding()]
+    Param
+    (
+        [String] $path, 
+        [String] $name, 
+        [String] $ComputerName
+    )
 
-	If($ComputerName -eq $env:computername -or $ComputerName -eq "LocalHost")
-	{
-		$key = Get-Item -LiteralPath $path -EA 0
-		If($key)
-		{
-			Return $key.GetValue($name, $Null)
-		}
-		Else
-		{
-			Return $Null
-		}
-	}
+    If($ComputerName -eq $env:computername -or $ComputerName -eq "LocalHost")
+    {
+        $key = Get-Item -LiteralPath $path -EA 0
+        If($key)
+        {
+            Return $key.GetValue($name, $Null)
+        }
+        Else
+        {
+            Return $Null
+        }
+    }
 
-	#path needed here is different for remote registry access
-	$path1 = $path.SubString( 6 )
-	$path2 = $path1.Replace( '\', '\\' )
+    #path needed here is different for remote registry access
+    $path1 = $path.SubString( 6 )
+    $path2 = $path1.Replace( '\', '\\' )
 
-	$registry = $null
-	try
-	{
-		## use the Remote Registry service
-		$registry = [Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey(
-			[Microsoft.Win32.RegistryHive]::LocalMachine,
-			$ComputerName ) 
-	}
-	catch
-	{
-		#$e = $error[ 0 ]
-		#3.06, remove the verbose message as it confised some people
-		#wv "Could not open registry on computer $ComputerName ($e)"
-	}
+    $registry = $null
+    try
+    {
+        ## use the Remote Registry service
+        $registry = [Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey(
+            [Microsoft.Win32.RegistryHive]::LocalMachine,
+            $ComputerName ) 
+    }
+    catch
+    {
+        #$e = $error[ 0 ]
+        #3.06, remove the verbose message as it confised some people
+        #wv "Could not open registry on computer $ComputerName ($e)"
+    }
 
-	$val = $null
-	If( $registry )
-	{
-		$key = $registry.OpenSubKey( $path2 )
-		If( $key )
-		{
-			$val = $key.GetValue( $name )
-			$key.Close()
-		}
+    $val = $null
+    If( $registry )
+    {
+        $key = $registry.OpenSubKey( $path2 )
+        If( $key )
+        {
+            $val = $key.GetValue( $name )
+            $key.Close()
+        }
 
-		$registry.Close()
-	}
+        $registry.Close()
+    }
 
-	Return $val
+    Return $val
 }
 
 Function GetBasicDCInfo {
-	Param
-	(
-		[Parameter( Mandatory = $true )]
-		[String] $dn	## distinguishedName of a DC
-	)
+    Param
+    (
+        [Parameter( Mandatory = $true )]
+        [String] $dn    ## distinguishedName of a DC
+    )
 
-	$DCName  = $dn.SubString( 0, $dn.IndexOf( '.' ) )
-	$SrvName = $dn.SubString( $dn.IndexOf( '.' ) + 1 )
+    $DCName  = $dn.SubString( 0, $dn.IndexOf( '.' ) )
+    $SrvName = $dn.SubString( $dn.IndexOf( '.' ) + 1 )
 
-	$Results = Get-ADDomainController -Identity $DCName -Server $SrvName -EA 0
+    $Results = Get-ADDomainController -Identity $DCName -Server $SrvName -EA 0
 
-   	If($? -and $Null -ne $Results)
-	{
-		$GC       = $Results.IsGlobalCatalog.ToString()
-		$ReadOnly = $Results.IsReadOnly.ToString()
-		$IPv4Address = $Results.IPv4Address -join ", "
+    If($? -and $Null -ne $Results)
+    {
+        $GC       = $Results.IsGlobalCatalog.ToString()
+        $ReadOnly = $Results.IsReadOnly.ToString()
+        $IPv4Address = $Results.IPv4Address -join ", "
         $IPv6Address = $Results.IPv6Address -join ", "
-		$ServerOS = $Results.OperatingSystem
-		$tmp = Get-RegistryValue "HKLM:\software\microsoft\windows nt\currentversion" "installationtype" $DCName
-		If( $null -eq $tmp ) { $ServerCore = 'Unknown' }
-		ElseIf( $tmp -eq 'Server Core') { $ServerCore = 'Yes' }
-		Else { $ServerCore = 'No' }
-	}
-	Else
-	{
-		$GC          = 'Unable to retrieve status'
-		$ReadOnly    = $GC
-		$ServerOS    = $GC
-		$ServerCore  = $GC
+        $ServerOS = $Results.OperatingSystem
+        $tmp = Get-RegistryValue "HKLM:\software\microsoft\windows nt\currentversion" "installationtype" $DCName
+        If( $null -eq $tmp ) { $ServerCore = 'Unknown' }
+        ElseIf( $tmp -eq 'Server Core') { $ServerCore = 'Yes' }
+        Else { $ServerCore = 'No' }
+    }
+    Else
+    {
+        $GC          = 'Unable to retrieve status'
+        $ReadOnly    = $GC
+        $ServerOS    = $GC
+        $ServerCore  = $GC
         $IPv4Address  = $GC
         $IPv6Address  = $GC
-	}
+    }
 
-	$obj = [PSCustomObject] @{ 
-		DCName       = $DCName
-		GC           = $GC
-		ReadOnly     = $ReadOnly
-		ServerOS     = $ServerOS
-		ServerCore   = $ServerCore
+    $obj = [PSCustomObject] @{ 
+        DCName       = $DCName
+        GC           = $GC
+        ReadOnly     = $ReadOnly
+        ServerOS     = $ServerOS
+        ServerCore   = $ServerCore
         IPv4Address  = $IPv4Address
         IPv6Address  = $IPv6Address
-	}
+    }
     
-	Return $obj
+    Return $obj
 }
 
 Function GetTimeServerRegistryKeys {
-	Param
-	(
-		[String] $DCName
-	)
+    Param
+    (
+        [String] $DCName
+    )
 
-	$AnnounceFlags = Get-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Config" "AnnounceFlags" $DCName
-	If( $null -eq $AnnounceFlags )
-	{
-		## DCName can't be contacted or DCName is an appliance with no registry
-		$AnnounceFlags = 'n/a'
-		$MaxNegPhaseCorrection = 'n/a'
-		$MaxPosPhaseCorrection = 'n/a'
-		$NtpServer = 'n/a'
-		$NtpType = 'n/a'
-		$SpecialPollInterval = 'n/a'
-		$VMICTimeProviderEnabled = 'n/a'
-		$NTPSource = 'Cannot retrieve data from registry'
-	}
-	Else
-	{
-		$MaxNegPhaseCorrection = Get-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Config" "MaxNegPhaseCorrection" $DCName
-		$MaxPosPhaseCorrection = Get-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Config" "MaxPosPhaseCorrection" $DCName
-		$NtpServer = Get-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Parameters" "NtpServer" $DCName
-		$NtpType = Get-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Parameters" "Type" $DCName
-		$SpecialPollInterval = Get-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\TimeProviders\NtpClient" "SpecialPollInterval" $DCName
-		$VMICTimeProviderEnabled = Get-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\TimeProviders\VMICTimeProvider" "Enabled" $DCName
-		$NTPSource = Invoke-Command -ComputerName $DCName {w32tm /query /computer:$DCName /source}
-	}
+    $AnnounceFlags = Get-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Config" "AnnounceFlags" $DCName
+    If( $null -eq $AnnounceFlags )
+    {
+        ## DCName can't be contacted or DCName is an appliance with no registry
+        $AnnounceFlags = 'n/a'
+        $MaxNegPhaseCorrection = 'n/a'
+        $MaxPosPhaseCorrection = 'n/a'
+        $NtpServer = 'n/a'
+        $NtpType = 'n/a'
+        $SpecialPollInterval = 'n/a'
+        $VMICTimeProviderEnabled = 'n/a'
+        $NTPSource = 'Cannot retrieve data from registry'
+    }
+    Else
+    {
+        $MaxNegPhaseCorrection = Get-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Config" "MaxNegPhaseCorrection" $DCName
+        $MaxPosPhaseCorrection = Get-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Config" "MaxPosPhaseCorrection" $DCName
+        $NtpServer = Get-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Parameters" "NtpServer" $DCName
+        $NtpType = Get-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Parameters" "Type" $DCName
+        $SpecialPollInterval = Get-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\TimeProviders\NtpClient" "SpecialPollInterval" $DCName
+        $VMICTimeProviderEnabled = Get-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\TimeProviders\VMICTimeProvider" "Enabled" $DCName
+        $NTPSource = Invoke-Command -ComputerName $DCName {w32tm /query /computer:$DCName /source}
+    }
 
-	If( $VMICTimeProviderEnabled -eq 'n/a' )
-	{
-		$VMICEnabled = 'n/a'
-	}
-	ElseIf( $VMICTimeProviderEnabled -eq 0 )
-	{
-		$VMICEnabled = 'Disabled'
-	}
-	Else
-	{
-		$VMICEnabled = 'Enabled'
-	}
-	
-	$obj = [PSCustomObject] @{
-		DCName                = $DCName.Substring(0, $_.IndexOf( '.'))
-		TimeSource            = $NTPSource
-		AnnounceFlags         = $AnnounceFlags
-		MaxNegPhaseCorrection = $MaxNegPhaseCorrection
-		MaxPosPhaseCorrection = $MaxPosPhaseCorrection
-		NtpServer             = $NtpServer
-		NtpType               = $NtpType
-		SpecialPollInterval   = $SpecialPollInterval
-		VMICTimeProvider      = $VMICEnabled
-	}
+    If( $VMICTimeProviderEnabled -eq 'n/a' )
+    {
+        $VMICEnabled = 'n/a'
+    }
+    ElseIf( $VMICTimeProviderEnabled -eq 0 )
+    {
+        $VMICEnabled = 'Disabled'
+    }
+    Else
+    {
+        $VMICEnabled = 'Enabled'
+    }
+    
+    $obj = [PSCustomObject] @{
+        DCName                = $DCName.Substring(0, $_.IndexOf( '.'))
+        TimeSource            = $NTPSource
+        AnnounceFlags         = $AnnounceFlags
+        MaxNegPhaseCorrection = $MaxNegPhaseCorrection
+        MaxPosPhaseCorrection = $MaxPosPhaseCorrection
+        NtpServer             = $NtpServer
+        NtpType               = $NtpType
+        SpecialPollInterval   = $SpecialPollInterval
+        VMICTimeProvider      = $VMICEnabled
+    }
     Return $obj
 }
 
@@ -524,7 +538,7 @@ function Get-WinADForestInformation {
   
 $TableHeader = "<table style=`"width: 100%; border-collapse: collapse; border: 1px solid black;`">"
 $Whitespace = "<br/>"
-$TableStyling = "<th>", "<th align=`"left`" style=`"background-color:#00adef; border: 1px solid black;`">"
+$TableStyling = "<th>", "<th align=`"left`" style=`"background-color:#003C71; border: 1px solid black; color: white;`">"
   
 $RawAD = Get-WinADForestInformation
   
@@ -572,16 +586,23 @@ $passwordpolicyNice = $passwordToc + $TableHeader + ($passwordpolicyheader -repl
 $adminsraw = Get-ADGroupMember "Domain Admins" | Select-Object SamAccountName, Name | convertto-html -Fragment | Select-Object -Skip 1
 $adminsToc = "<div id=`"domain_admins`"></div>"
 $adminsnice = $adminsToc + $TableHeader + ($adminsraw -replace $TableStyling) + $Whitespace
-  
-$TotalUsers = (Get-AdUser -filter *).count
-$EnabledUsers = (Get-AdUser -filter * | Where-Object { $_.enabled -eq $true }).count
-$DisabledUSers = (Get-AdUser -filter * | Where-Object { $_.enabled -eq $false }).count
+
+$Today = Get-Date
+$TotalUsers = (Get-AdUser -Filter *).count
+$EnabledUsers = (Get-AdUser -Filter * | Where-Object { $_.enabled -eq $true }).count
+$ActiveUsers = (Get-ADUser -Filter { LastLogonDate -ge 0 } -Properties SamAccountName, UserPrincipalName, mail, LastLogonDate | Where-Object { (New-TimeSpan $_.LastLogonDate $Today).Days -le 30 }).count
+$StaleUsers = (Get-ADUser -Filter { LastLogonDate -ge 0 } -Properties SamAccountName, UserPrincipalName, mail, LastLogonDate | Where-Object { (New-TimeSpan $_.LastLogonDate $Today).Days -ge 31 }).count
+$UnusedUsers = (Get-ADUser -Filter { LastLogonDate -notlike "*" } -Properties SamAccountName, UserPrincipalName, mail, LastLogonDate).count
+$DisabledUSers = (Get-AdUser -Filter * | Where-Object { $_.enabled -eq $false }).count
 $DomainAdminUsers = (Get-ADGroupMember -Identity "Domain Admins").count
 $EnterpriseAdminUsers = (Get-ADGroupMember -Identity "Enterprise Admins").count
 $SchemaAdminUsers = (Get-ADGroupMember -Identity "Schema Admins").count
 $AdminCountUsers = (Get-ADUser -LDAPFilter "(admincount=1)").count
 $UsersCountObj = [PSCustomObject] @{ 
     'Total'             = $TotalUsers
+    'Active in 30 days' = $ActiveUsers
+    'Not Active in 30 days' = $StaleUsers
+    'Never Logged In'   = $UnusedUsers
     'Enabled'           = $EnabledUsers
     'Disabled'          = $DisabledUSers
     'Domain Admins'     = $DomainAdminUsers
@@ -594,25 +615,45 @@ $userTotalsRaw = $UsersCountObj | convertto-html -Fragment | Select-Object -Skip
 $userTotalsToc = "<div id=`"user_count`"></div>"
 $userTotalsNice = $userTotalsToc + $TableHeader + ($userTotalsRaw -replace $TableStyling) + $Whitespace
 
+$TotalComputers = (Get-ADComputer -Filter {OperatingSystem -notlike "*Server*"}).count
+$EnabledComputers = (Get-AdComputer -Filter {OperatingSystem -notlike "*Server*"} | Where-Object { $_.enabled -eq $true }).count
+$ActiveComputers = (Get-ADComputer -Filter {OperatingSystem -notlike "*Server*" -and LastLogonDate -ge 0 } -Properties SamAccountName, UserPrincipalName, mail, LastLogonDate | Where-Object { (New-TimeSpan $_.LastLogonDate $Today).Days -le 30 }).count
+$StaleComputers = (Get-ADComputer -Filter {OperatingSystem -notlike "*Server*" -and LastLogonDate -ge 0 } -Properties SamAccountName, UserPrincipalName, mail, LastLogonDate | Where-Object { (New-TimeSpan $_.LastLogonDate $Today).Days -ge 31 }).count
+$UnusedComputers = (Get-ADComputer -Filter {OperatingSystem -notlike "*Server*" -and LastLogonDate -notlike "*" } -Properties SamAccountName, UserPrincipalName, mail, LastLogonDate).count
+$DisabledComputers = (Get-AdComputer -Filter {OperatingSystem -notlike "*Server*"} | Where-Object { $_.enabled -eq $false }).count
+$ComputersCountObj = [PSCustomObject] @{ 
+    'Total'             = $TotalComputers
+    'Active in 30 days' = $ActiveComputers
+    'Not Active in 30 days' = $StaleComputers
+    'Never Logged In'   = $UnusedComputers
+    'Enabled'           = $EnabledComputers
+    'Disabled'          = $DisabledComputers
+}
+
+$computerTotalsRaw = $ComputersCountObj | convertto-html -Fragment | Select-Object -Skip 1
+$computerTotalsToc = "<div id=`"computer_count`"></div>"
+$computerTotalsNice = $ComputersTotalsToc + $TableHeader + ($computerTotalsRaw -replace $TableStyling) + $Whitespace
+
 $currentDate = Get-Date -Format "dddd dd/MM/yyyy HH:mm K"
 $toc = '<h2><center>
-			<a href="#forestSummary">FOREST SUMMARY</a>|
-			<a href="#siteSummary">SITE SUMMARY</a>|
-			<a href="#domainsSummary">DOMAIN SUMMARY</a>|
-			<a href="#domainControllers">DOMAIN CONTROLLERS</a>|
-			<a href="#ntpConfiguration">NTP CONFIGURATION</a>|
-			<a href="#fsmoRoles">FSMO ROLES</a>|
-			<a href="#optionalFeatures">OPTIONAL FEATURES</a>|
-			<a href="#upnSuffixes">UPN SUFFIXES</a>|
-			<a href="#defaultPassword_policies">DEFAULT PASSWORD POLICIES</a>|
-			<a href="#userCount">USER COUNT</a>|
-			<a href="#domainAdmins">DOMAIN ADMINS</a> 
-		</center></h2><br />'
+            <a href="#forest_summary">FOREST SUMMARY</a>|
+            <a href="#site_summary">SITE SUMMARY</a>|
+            <a href="#domains_summary">DOMAIN SUMMARY</a>|
+            <a href="#domain_controllers">DOMAIN CONTROLLERS</a>|
+            <a href="#ntp_configuration">NTP CONFIGURATION</a>|
+            <a href="#fsmo_roles">FSMO ROLES</a>|
+            <a href="#optional_features">OPTIONAL FEATURES</a>|
+            <a href="#upn_suffixes">UPN SUFFIXES</a>|
+            <a href="#default_password_policies">DEFAULT PASSWORD POLICIES</a>|
+            <a href="#user_count">USER COUNT</a>|
+        <a href="#computer_count">COMPUTER COUNT</a>|
+            <a href="#domain_admins">DOMAIN ADMINS</a> 
+        </center></h2><br />'
 
 # Setup the fields for the Asset 
 $AssetFields = @{
     'lastUpdated'               = $currentDate
-	'toc'						= @{'html' = $toc }
+    'toc'                       = @{'html' = $toc }
     'forestName'               = $RawAD.ForestName
     'forestSummary'            = @{'html' = $ForestNice }
     'siteSummary'              = @{'html' = $SiteNice }
@@ -625,6 +666,7 @@ $AssetFields = @{
     'defaultPasswordPolicies' = @{'html' = $passwordpolicyNice }
     'domainAdmins'             = @{'html' = $adminsnice }
     'userCount'                = @{'html' = $userTotalsNice }
+    'computerCount'                = @{'html' = $computerTotalsNice }
 }
 
 try {
@@ -633,7 +675,7 @@ try {
 
     # Match to a CloudMonitor
     if ($MatchCount -eq 0) {
-	    Write-Host "The domain was not matched to a Document Name in NinjaOne. Please add a Active Directory Apps and Services document with the name matching $RawAD.ForestName"    
+        Write-Host "The domain was not matched to a Document Name in NinjaOne. Please add a Active Directory Apps and Services document with the name matching $RawAD.ForestName"    
     } elseif ($MatchCount -gt 1) {
         Throw "Multiple NinjaOne Documents ($($MatchedDoc.documentId -join '')) matched to $($RawAD.ForestName)"
         continue
@@ -649,8 +691,8 @@ if ($MatchedDoc) {
     documentId   = $MatchedDoc.documentId
     documentName = $RawAD.ForestName
     fields       = $AssetFields
-	}
-	$NinjaDocUpdates.Add($UpdateObject)
+    }
+    $NinjaDocUpdates.Add($UpdateObject)
 
 } else {
     $CreateObject = [PSCustomObject]@{
@@ -660,7 +702,7 @@ if ($MatchedDoc) {
     fields = $AssetFields
     }
     $NinjaDocCreation.Add($CreateObject)
-	}
+    }
 
 ## Perform the bulk updates of data
 
