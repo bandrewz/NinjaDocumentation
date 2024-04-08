@@ -29,6 +29,13 @@ Import-Module $moduleName
     Write-Host "Error Importing module $moduleName"
 }
 
+If(Get-Module -ListAvailable -Name "PSnmap") {
+	Import-module "PSnmap"
+	} Else {
+		install-module "PSnmap" -Force
+		import-module "PSnmap"
+	}
+
 #Set Ninja API Login
 Connect-NinjaOne -NinjaOneInstance $NinjaOneInstance -NinjaOneClientID $NinjaOneClientID -NinjaOneClientSecret $NinjaOneClientSecret
     
