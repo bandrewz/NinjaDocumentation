@@ -205,11 +205,9 @@ try {
         Write-Host "Creating Documents"
         $CreatedDocs = Invoke-NinjaOneRequest -Path "organization/documents" -Method POST -InputObject $NinjaDocCreation -AsArray
         Write-Host "Created $(($CreatedDocs | Measure-Object).count) Documents"
-        Write-Host "The Asset Fields to create was: $ScopeInfo"
     }
 } Catch {
     Write-Host "Creation Error on Doc ID: $DHCPDocTemplate.id for Org ID: $OrgID, but may have been successful, issue that could have been the cause: $_"
-    Write-Host "The Asset Fields to create was: $ScopeInfo"
 }
 
 try {
@@ -218,10 +216,8 @@ try {
         Write-Host "Updating Documents"
         $UpdatedDocs = Invoke-NinjaOneRequest -Path "organization/documents" -Method PATCH -InputObject $NinjaDocUpdates -AsArray
         Write-Host "Updated $(($UpdatedDocs | Measure-Object).count) Documents"
-        Write-Host "The Asset Fields to create was: $ScopeInfo"
     }
 } Catch {
     Write-Host "Update Doc Error on Doc ID: $DHCPDocTemplate.id for Org ID: $OrgID, but may have been successful, issue that could have been the cause: $_"
-    Write-Host "The Asset Fields to create was: $ScopeInfo"
 }
 
