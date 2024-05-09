@@ -133,14 +133,14 @@ $FSPTemplate = [PSCustomObject]@{
 }	
 	
 #Collect Data
-        #Set Ninja API Login
-        Connect-NinjaOne -NinjaOneInstance $NinjaOneInstance -NinjaOneClientID $NinjaOneClientID -NinjaOneClientSecret $NinjaOneClientSecret
-        $FSPDocTemplate = Invoke-NinjaOneDocumentTemplate $FSPTemplate
-        $FSPDocs = Invoke-NinjaOneRequest -Method GET -Path 'organization/documents' -QueryParams "templateIds=$($FSPDocTemplate.id)"
-        [System.Collections.Generic.List[PSCustomObject]]$NinjaDocUpdates = @()
-        [System.Collections.Generic.List[PSCustomObject]]$NinjaDocCreation = @()
 		$AllsmbShares = Get-SmbShare | Where-Object {( (@('Remote Admin', 'Default share', 'Remote IPC') -notcontains $_.Description) ) -and $_.ShareType -eq 'FileSystemDirectory'}
 		foreach($SMBShare in $AllSMBShares){
+                #Set Ninja API Login
+                Connect-NinjaOne -NinjaOneInstance $NinjaOneInstance -NinjaOneClientID $NinjaOneClientID -NinjaOneClientSecret $NinjaOneClientSecret
+                $FSPDocTemplate = Invoke-NinjaOneDocumentTemplate $FSPTemplate
+                $FSPDocs = Invoke-NinjaOneRequest -Method GET -Path 'organization/documents' -QueryParams "templateIds=$($FSPDocTemplate.id)"
+                [System.Collections.Generic.List[PSCustomObject]]$NinjaDocUpdates = @()
+                [System.Collections.Generic.List[PSCustomObject]]$NinjaDocCreation = @()
 		$Permissions = get-item $SMBShare.path | get-ntfsaccess
 		$Permissions += get-childitem -Depth $RecursiveDepth -Recurse $SMBShare.path | get-ntfsaccess
 		$FullAccess = $permissions | where-object {$_.'AccessRights' -eq "FullControl" -AND $_.IsInherited -eq $false -AND $_.'AccessControlType' -ne "Deny"}| Select-Object FullName,Account,AccessRights,AccessControlType  | ConvertTo-Html -Fragment | Out-String
